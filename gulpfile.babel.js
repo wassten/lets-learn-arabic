@@ -1,63 +1,75 @@
 import gulp from 'gulp';
 import bro from 'gulp-bro';
-import sass from 'gulp-sass';
+import gulpSass from 'gulp-sass';
+import dartSass from 'sass';
 import postcss from 'gulp-postcss';
 import autoprefixer from 'autoprefixer';
 import rename from 'gulp-rename';
 import envify from 'gulp-envify';
 import uglify from 'gulp-uglify';
-import watch from 'gulp-watch';
+
+const { src, dest, series, parallel, watch: gulpWatch } = gulp;
+const sass = gulpSass(dartSass);
 
 const browsers = ['> 1%', 'last 2 versions'];
 
-gulp.task('js', () =>
-  gulp.src('app/index.js')
-    .pipe(bro({
-      transform: ['babelify'],
-      debug: true
-    }))
+export function js() {
+  return src('app/index.js')
+    .pipe(
+      bro({
+        transform: ['babelify'],
+        debug: true
+      })
+    )
     .pipe(rename('app.js'))
-    .pipe(gulp.dest('public/js'))
-);
+    .pipe(dest('public/js'));
+}
 
-gulp.task('css', () =>
-  gulp.src('app/styles/index.scss')
+export function css() {
+  return src('app/styles/index.scss')
     .pipe(sass().on('error', sass.logError))
-    .pipe(postcss([ autoprefixer({ browsers }) ]))
+    .pipe(postcss([autoprefixer({ overrideBrowserslist: browsers })]))
     .pipe(rename('app.css'))
-    .pipe(gulp.dest('public/css'))
-);
+    .pipe(dest('public/css'));
+}
 
-gulp.task('copyassets', () =>
-  gulp.src('assets/**/*.*')
-    .pipe(gulp.dest('public'))
-);
+export function copyAssets() {
+  return src('assets/**/*.*').pipe(dest('public'));
+}
 
-gulp.task('prod-js', () =>
-  gulp.src('app/index.js')
-    .pipe(bro({
-      transform: ['babelify'],
-      debug: false
-    }))
-    .pipe(envify({NODE_ENV: 'production'}))
+export function prodJs() {
+  return src('app/index.js')
+    .pipe(
+      bro({
+        transform: ['babelify'],
+        debug: false
+      })
+    )
+    .pipe(envify({ NODE_ENV: 'production' }))
     .pipe(uglify())
     .pipe(rename('app.min.js'))
-    .pipe(gulp.dest('public/js'))
-);
+    .pipe(dest('public/js'));
+}
 
-gulp.task('prod-css', () =>
-  gulp.src('app/styles/index.scss')
-    .pipe(sass({outputStyle: 'compressed'}).on('error', sass.logError))
-    .pipe(postcss([ autoprefixer({ browsers }) ]))
+export function prodCss() {
+  return src('app/styles/index.scss')
+    .pipe(sass({ outputStyle: 'compressed' }).on('error', sass.logError))
+    .pipe(postcss([autoprefixer({ overrideBrowserslist: browsers })]))
     .pipe(rename('app.min.css'))
-    .pipe(gulp.dest('public/css'))
-);
+    .pipe(dest('public/css'));
+}
 
-gulp.task('watch', ['js', 'css'], () => {
-  watch('app/**/*.js', () => gulp.start('js'));
-  watch('app/**/*.scss', () => gulp.start('css'));
-  watch('assets/**/*.*', () => gulp.start('copyassets'));
-});
+function watchFiles() {
+  gulpWatch('app/**/*.js', js);
+  gulpWatch('app/**/*.scss', css);
+  gulpWatch('assets/**/*.*', copyAssets);
+}
 
-gulp.task('default', ['js', 'css', 'copyassets']);
-gulp.task('build-prod', ['prod-js', 'prod-css', 'copyassets']);
+export const build = parallel(js, css, copyAssets);
+export const buildProd = parallel(prodJs, prodCss, copyAssets);
+export const watch = series(build, watchFiles);
+export const defaultTask = build;
+
+gulp.task('watch', watch);
+gulp.task('default', defaultTask);
+gulp.task('build-prod', buildProd);
